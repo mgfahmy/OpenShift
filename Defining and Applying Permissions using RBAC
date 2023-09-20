@@ -1,0 +1,52 @@
+1-Log in to the OpenShift cluster and determine which cluster role bindings assign the self-provisioner cluster role.
+=======================================================
+$oc login -u admin -p redhat
+$oc get clusterrolebinding -o wide | grep -E 'NAME|self-provisioner'
+=======================================================
+2-Remove the privilege to create new projects from all users who are not cluster administrators by
+deleting the self-provisioner cluster role from the system:authenticated:oauth virtual group.
+=======================================================
+$oc describe clusterrolebindings self-provisioners
+$oc adm policy remove-cluster-role-from-group self-provisioner system:authenticated:oauth
+$oc describe clusterrolebindings self-provisioners
+$oc get clusterrolebinding -o wide | grep -E 'NAME|self-proviosioner'
+$oc login -u developer -p developer
+$oc new-project test
+======================================================
+3-Create a project and add project administration privileges to the leader user.
+======================================================
+$oc login -u admin -p redhat
+$oc new-project auth-rbac
+$oc policy add-role-to-user admin leader
+======================================================
+4-Create the dev-group and qa-group groups and add their respective members.
+======================================================
+$oc adm groups new dev-group
+$ocadm groups add-users dev-group developer
+$oc adm groups new qa-group
+$oc adm groups add-users qa-group qa-engineer
+$oc get groups
+======================================================
+5-As the leader user, assign write privileges for dev-group and read privileges for qa-group to the auth-rbac project.
+======================================================
+$oc login -u leader -p redhat
+$oc policy add-role-to-group edit dev-group
+$oc policy add-role-to-group view qa-group
+$oc get rolebindings -o wide
+======================================================
+6-As the developer user, deploy an Apache HTTP Server to prove that the developer user has write privileges in the project.
+Also try to grant write privileges to the qa-engineer user to prove that the developer user has no project administration privileges.
+======================================================
+$oc login -u developer -p developer
+$oc new-app --name httpd httpd:2.4
+$oc policy add-role-to-user edit qa-engineer
+=======================================================
+7-Verify that the qa-engineer user only has read privileges on the httpd application.
+=======================================================
+$oc login -u qa-engineer -p redhat
+$oc scale deployment/httpd --replicas 3
+=======================================================
+8-Restore project creation privileges to all users.
+=======================================================
+$oc login -u admin -p redhat
+$oc adm policy add-cluster-role-to-group self-provisioner system:authenticated:oauth
