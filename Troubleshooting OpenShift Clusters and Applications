@@ -1,0 +1,40 @@
+1-Log in to the OpenShift cluster and inspect the status of your cluster nodes.
+===============================================================================
+$source /usr/local/etc/ocp4.config
+$oc login -u kubeadmin -p ${RHT_OCP4_KUBEADM_PASSWD} https://api.ocp4.example.com:6443
+$oc get nodes
+$oc adm top node
+$oc describe node master01
+================================================================================
+2-Review the logs of the internal registry operator, the internal registry server, and the Kubelet of a node.
+================================================================================
+$oc get pod -n openshift-image-registry
+$oc logs -n openshift-image-registry cluster-image-registry-operator-6f7784dc86-qq258 
+$oc logs -n openshift-image-registry image-registry-867979b75b-xk4ns
+$oc adm node-logs -u kubelete master01
+==================================================================================
+3-Start a shell session to the same node that you previously used to inspect its OpenShift services and pods.
+Do not make any change to the node, such as stopping services or editing configuration files.
+==================================================================================
+$oc debug node/master01
+#chroot /host
+#systemctl status kubelete
+#systemctl status crio
+#crictl ps --name etcd
+#exit
+#exit
+===================================================================================
+4-Enter the install-troubleshoot project to diagnose a pod that is in an error state
+===================================================================================
+$oc project install-troubleshoot
+$oc get pods
+$oc status
+$oc get events
+$podman login registry.redhat.io
+username:
+passwdord:
+$skopeo inspect docker://registry.redhat.io/rhel8/postgresq-13:1
+$oc edit deployment/psql
+image: registry.redhat.io/rhel8/postgresql-13:1-7
+$oc get pods
+$oc status
