@@ -1,0 +1,71 @@
+1-Update the existing ~/DO280/labs/auth-review/tmp_users HTPasswd authentication file to remove the analyst user. 
+Ensure that the tester and leader users in the file use a password of L@bR3v!ew. 
+Add two new entries to the file for the users admin and developer. 
+Use L@bR3v!ew as the password for each new user.
+==================================================================
+$htpasswd -D ~/DO280/labs/auth-review/tmp_users analyst
+$passwd='L@bR3v!ew'
+$htpasswd -b ~/DO280/labs/auth-review/tmp_users tester ${passwd}
+$htpasswd -b ~/DO280/labs/auth-review/tmp_users leader ${passwd}
+$htpasswd -b ~/DO280/labs/auth-review/tmp_users admin ${passwd}
+$htpasswd -b ~/DO280/labs/auth-review/tmp_users developer ${passwd}
+$cat ~/DO280/labs/auth-review/tmp_users
+===================================================================
+2-Log in to your OpenShift cluster as the kubeadmin user using the RHT_OCP4_KUBEADM_PASSWD variable defined in 
+the /usr/local/etc/ocp4.config file as the password. Configure your cluster to use the HTPasswd identity provider 
+using the user names and passwords defined in the ~/DO280/labs/auth-review/tmp_users file.
+===================================================================
+$source /usr/local/etc/ocp4.config
+$oc login -u kubeadmin -p ${RHT_OCP4_KUBEADM_PASSWD} https://api.ocp4.example.com:6443
+$oc create secret generic auth-review --from-file htpasswd=~/DO280/labs/auth-review/tmp_users \
+-n openshift-config
+$oc get oauth cluster -o yaml >~/DO280/labs/auth-review/oauth.yaml
+$vim ~/DO280/labs/auth-review/oauth.yaml
+spec:
+  identityProviders:
+    - htpasswd:
+        fileData:
+           name: auth-review
+      mappingMethod: claim
+      name: htpasswd
+      type: HTPasswd
+$oc replace -f ~/DO280/labs/auth-review/oauth.yaml
+$watch oc get pods -n openshift-authentication
+=================================================================
+3-Make the admin user a cluster administrator. Log in as both admin and as developer to 
+verify HTPasswd user configuration and cluster privileges.
+=================================================================
+$oc adm policy add-cluster-role-to-user cluster-admin admin
+$oc login -u admin -p ${passwd}
+$oc get nodes
+$oc login -u developer -p ${passwd}
+$oc get nodes
+================================================================
+4-As the admin user, remove the ability to create projects cluster wide.
+================================================================
+$oc login -u admin -p ${passwd}
+$oc adm policy remove-cluster-role-from-group self-provisioner system:authenticated:oauth
+================================================================
+5-Create a group named managers, and add the leader user to the group. 
+Grant project creation privileges to the managers group. 
+As the leader user, create the auth-review project.
+================================================================
+$oc adm groups new managers
+$oc adm groups add-users managers leader
+$oc adm policy add-cluster-role-to-group self-provisioner managers
+$oc login -u leader -p ${passwd}
+$oc new-project auth-review
+=================================================================
+6-Create a group named developers and grant edit privileges on the auth-review project. 
+Add the developer user to the group.
+=================================================================
+$oc login -u admin -p ${passwd}
+$oc adm groups new developers
+$oc policy add-role-to-group edit developers
+$oc adm groups add-users developers developer
+=================================================================
+7- Create a group named qa and grant view privileges on the auth-review project. Add the tester user to the group.
+=================================================================
+$oc adm groups new qa
+$oc policy add-role-to-group view qa
+$oc adm groups add-users qa tester
