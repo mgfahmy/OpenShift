@@ -1,0 +1,49 @@
+1-Log in to the OpenShift cluster.
+===================================
+$source /usr/local/etc/ocp4.config
+$oc login -u kubeadmin -p ${RHT_OCP4_KUBEADM_PASSWD} https://api.ocp4.example.com:6443
+===================================
+2-Create a new project named install-storage
+===================================
+$oc new-project install-storage
+===================================
+3-Verify the default storage class
+===================================
+$oc get storageclass
+===================================
+4-Create a new database deployment using the container image located at registry.redhat.io/rhel8/postgresql-13:1-7.
+===================================
+$oc new-app --name postgresql-persistent --image registry.redhat.io/rhel8/postgresql-13:1-7 \
+-e POSTGRESQL_USER=redhat \
+-e POSTGRESQL_PASSWORD=redhat123 \
+-e POSTGRESQL_DATABASE=persistentdb
+===================================
+5- Add a persistent volume for the PostgreSQL database.
+===================================
+$oc set volumes deployment/postgresql-persistent --add --name postgresql-storage --type pvc \
+--claim-class nfs-storage --claim-mode rwo --claim-size 10Gi --mount-path /var/lib/pgsql \
+--claim-name postgresql-storage
+$oc get pvc
+$oc get pv -o wide custom-columns=name:.metadata.name,claim:.spec.claimRef.name
+===================================
+6- Populate the database using the ~/DO280/labs/install-storage/init_data.sh script.
+===================================
+$cd ~/DO280/labs/install-storage
+$./init_data.sh
+$./check_data.sh
+====================================
+7-Remove the postgresql-persistent deployment and create another deployment named postgresql-deployment2
+that uses the same persistent volume; verify that the data persisted.
+===================================
+$oc delete all -l deployment=postgresql-persistent
+$oc new-app --name postgresql-persistent2 --image registry.redhat.io/rhel8/postgresql-13:1-7 \
+-e POSTGRESQL_USER=redhat -e POSTGRESQL_PASSWORD=redhat123 -e POSTGRESQL_DATABASE=persistentdb
+$./check_data.sh
+$oc set volumes deployment/postgresql-persistent --add --name postgresql-storage --type pvc \
+--claim-name postgresql-storage --mount-path /var/lib/pgsql
+$./check_data.sh
+==================================
+8-Remove the postgresql-persistent2 deployment and the persistent volume claim
+==================================
+$oc delete all -l deployment=postgresql-persistent2
+$oc delete pvc/postgresql-storage
