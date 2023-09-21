@@ -16,5 +16,22 @@ oc adm policy scc-subject-review -f -
 ===============================================================
 3-Create a new service account and assign the anyuid SCC to it.
 ===============================================================
-$oc
-https://user-images.githubusercontent.com/121172005/269292374-ba32576f-cf24-43d8-b070-17ab0bdc14e4.PNG
+$oc create sa gitlab-sa
+$oc adm policy add-scc-to-user anyuid -z gitlab-sa
+===============================================================
+4-Modify the gitlab application so that it uses the newly created service account. 
+Verify that the new deployment succeeds.
+===============================================================
+$oc login -u developer -p developer
+$oc set serviceaccount deployment/gitlab gitlab-sa
+$oc get pods
+===============================================================
+5-Verify that the gitlab application works properly.
+===============================================================
+$oc expose service gitlab --port 80 --hostname gitlab.apps.ocp4.example.com
+$oc get routes
+$curl -sL http://gitlab.apps.ocp4.example.com
+===============================================================
+6-Delete the authorization-scc project.
+===============================================================
+$oc delete project authorization-scc
