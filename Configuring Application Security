@@ -1,0 +1,67 @@
+1-As the developer user, create the authorization-review project. 
+All additional tasks in this exercise use the authorization-review project.
+=================================================================
+$oc login -u developer -p developer https://api.ocp4.example.com:6443
+$oc new-project authorization-review
+=================================================================
+2-Create a secret named review-secret that you will use with the MySQL database and WordPress applications. 
+The secret must include three key-value pairs:
+user=wpuser, password=redhat123, and database=wordpress.
+=================================================================
+$oc create secret generic review-secret --form-literal user=wpuser \
+--from-literal password=redhat123 --from-literal database=wordpress
+=================================================================
+3-Deploy a MySQL database application named mysql using the container image located at registry.redhat.io/rhel8/mysql-80:1. 
+Modify the mysql deployment to use the review-secret secret as environment variables. 
+The environment variables must use the MYSQL_ prefix.
+=================================================================
+$oc new-app --name mysql --image registry.redhat.io/rhel8/mysql-80:1.
+$oc set env deployment/mysql --from secret/review-secret \
+--prefix MYSQL_
+$oc get pods -l deployment=mysql
+=================================================================
+4- Deploy a WordPress application named wordpress using the container image located at 
+quay.io/redhattraining/wordpress:5.7-php7.4-apache. Once deployed, 
+modify the wordpress deployment to use the review-secret secret as additional environment variables.
+The Wordpress application requires that you set several environment variables when executing the oc new-app command:
+WORDPRESS_DB_HOST with a value of mysql.
+WORDPRESS_DB_NAME with a value of wordpress.
+WORDPRESS_TITLE with a value of auth-review.
+WORDPRESS_USER with a value of wpuser.
+WORDPRESS_PASSWORD with a value of redhat123.
+WORDPRESS_EMAIL with a value of student@redhat.com.
+WORDPRESS_URL with a value of wordpress-review.apps.ocp4.example.com.
+The additional environment variables must use the WORDPRESS_DB_ prefix.
+===================================================================
+$oc new-app --name wordpress --image quay.io/redhattraining/wordpress:5.7-php7.4-apache \
+-e WORDPRESS_DB_HOST=mysql \
+-e WORDPRESS_DB_NAME=wordpress \
+-e WORDPRESS_TITLE=auth-review \
+-e WORDPRESS_USER=wpuser \
+-e WORDPRESS_PASSWORD=redhat123 \
+-e WORDPRESS_EMAIL=student@redhat.com \
+-e WORDPRESS_URL=wordpress-review.apps.ocp4.example.com
+$oc set env deployment/wordpress -from secret/review-secret \
+--prefix WORDPRESS_DB_ prefix
+$oc get pods -l deployment=wordpress -w
+$oc logs wordpress-68c49c9d4-wq46g
+======================================================================
+5- As the admin user, identify a less restrictive SCC that allows the wordpress deployment to run successfully. 
+Create a service account named wordpress-sa and grant the anyuid SCC to it. 
+Modify the wordpress deployment to use the wordpress-sa service account.
+======================================================================
+$oc login -u admin -p redhat
+$oc get pod wordpress-68c49c9d4-wq46g -o yaml | \
+oc adm policy scc-subject-review -f -
+$oc create sa wordpress-sa
+$oc adm policy add-scc-to-user anyuid -z wordpress-sa
+$oc set serviceaccount deployment/wordpress wordpress-sa
+$oc get pods -l deployment=wordpress -w 
+=======================================================================
+6-As the developer user, make the wordpress service accessible to external requests 
+using the wordpress-review.apps.ocp4.example.com host name. 
+Access the route using a web browser and verify the WordPress application displays the setup wizard.
+=======================================================================
+$oc login -u developer -p developer
+$oc expose service wordpress --hostname wordpress-review.apps.ocp4.example.com
+$curl http://wordpress-review.apps.ocp4.example.com/wp-admin/install.php | grep installation
