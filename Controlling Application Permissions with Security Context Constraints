@@ -1,0 +1,20 @@
+1-Log in to the OpenShift cluster and create the authorization-scc project.
+==============================================================
+$oc login -u developer -p developer https://api.ocp4.example.com:6443
+$oc new-project authorization-scc
+==============================================================
+2-Deploy an application named gitlab using the container image located at quay.io/redhattraining/gitlab-ce:8.4.3-ce.0. 
+This image is a copy of the container image available at docker.io/gitlab/gitlab-ce:8.4.3-ce.0. 
+Verify that the pod fails because the container image needs root privileges.
+==============================================================
+$oc new-app --name gitlab --image quay.io/redhattraining/gitlab-ce:8.4.3-ce.0
+$oc get pods -l deployment=gitlab
+$oc logs pod/gitlab-7d67db7875-gcsjl
+$oc login -u admin -p redhat
+$oc get pod/gitlab-7d67db7875-gcsjl -o yaml | \
+oc adm policy scc-subject-review -f -
+===============================================================
+3-Create a new service account and assign the anyuid SCC to it.
+===============================================================
+$oc
+https://user-images.githubusercontent.com/121172005/269292374-ba32576f-cf24-43d8-b070-17ab0bdc14e4.PNG
