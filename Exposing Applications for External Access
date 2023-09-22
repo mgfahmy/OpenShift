@@ -1,0 +1,70 @@
+1- Log in to the OpenShift cluster and create the network-ingress project.
+==========================================================================
+$oc login -u developer -p password https://api.ocp4.example.com:6443
+$oc new-project network-ingress
+==========================================================================
+2- The OpenShift deployment file for the application is accessible at ~/DO280/labs/network-ingress/todo-app-v1.yaml.
+The deployment points to quay.io/redhattraining/todo-angular:v1.1, which is the initial and unencrypted version of the application. 
+The file defines the todo-http service that points to the application pod.
+Create the application and expose the service.
+==========================================================================
+$cd ~/DO280/labs/network-ingress
+$ls
+$oc create -f todo-app-v1.yaml
+$oc get pods
+$oc expose svc todo-http --hostname todo-http.apps.ocp4.example.com
+$oc get routes
+$sudo tcpdum -i eth0 -A -n port 80 | grep angular
+==========================================================================
+3- Create a secure edge route. Edge certificates encrypt the traffic between the client and the router, 
+but leave the traffic between the router and the service unencrypted. 
+OpenShift generates its own certificate that it signs with its CA.
+==========================================================================
+$oc create route edge todo-https --service todo-http --hostname todo-https.apps.ocp4.example.com
+$curl -I -v https://todo-https.apps.ocp4.example.com
+$oc get svc
+$oc debug -t deployment/http-todo --image registry.access.redhat.com/ubi8/ubi:8.4
+$curl -v 172.30.102.29
+$exit
+$oc delete route todo-https
+==========================================================================
+4- Generate TLS certificates for the application.
+In the following steps, you generate a CA-signed certificate that you attach as a secret to the pod. 
+You then configure a secure route in passthrough mode and let the application expose that certificate.
+==========================================================================
+$cd certs/
+$openssl genrsa -out training.key 4096
+$openssl req -new -key training.key -out training.csr -subj "/C=EGY/ST=ALEX/L=ALEX/O=Red Hat/CN=todo-https.apps.ocp4.example.com"
+$openssl x509 -req -in training.csr -passin file:passphrase.txt -CA training-CA.pem -CAkey training-CA.key \
+-CAcreateserial -out training.crt -days 192 -sha256 -extfile training.ext 
+$cd
+==========================================================================
+5- Deploy a new version of your application.
+The new version of the application expects a certificate and a key inside the container at /usr/local/etc/ssl/certs.
+The web server in that version is configured with SSL support. 
+Create a secret to import the certificate from the workstation machine. 
+In a later step, the application deployment requests that secret and exposes its content to the container at /usr/local/etc/ssl/certs.
+==========================================================================
+$oc create secret tls todo-certs --cert crets/training.crt --key certs/training.key
+$oc create -f todo-app-v2.yaml
+$oc get pods
+$oc describe pod todo-https-59d8fc9d47-265ds | grep -A2 Mounts
+==========================================================================
+6-Create the secure route.
+==========================================================================
+$oc create route passthrough todo-https --service todo-https --port8443 \
+--hostname todo-https.apps.ocp4.example.com
+$curl -I -v --cacert https://todo-https.api.ocp4.example.com
+==========================================================================
+7- Create a new debug pod to further confirm proper encryption at the service level.
+==========================================================================
+$oc get svc
+$oc debug -t deployment/todo-https --image registry.access.redhat.com/ubi8/ubi:8.4
+$curl -I http://172.30.121.154
+$curl -s -k https://172.30.121.154:8443
+$exit
+==========================================================================
+8- Perform cleanup.
+==========================================================================
+$cd
+$oc delete project network-ingress 
