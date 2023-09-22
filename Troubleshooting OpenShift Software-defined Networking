@@ -1,0 +1,74 @@
+1- Log in to the OpenShift cluster and create the network-sdn project.
+=============================================================
+$oc login -u developer -p developer https://api.ocp4.example.com:6443
+$oc new-prject network-sdn
+=============================================================
+2- Deploy the database and restore its data. The ~/DO280/labs/network-sdn/todo-db.yaml file defines the following resources:
+A deployment that creates a container based on a MySQL image.
+A service that points to the mysql application.
+=============================================================
+$oc create -f ~/DO280/labs/network-sdn/todo-db.yaml
+$oc status
+$cd ~/DO280/labs/network-sdn
+$ls
+$oc get pods
+$oc cp db-data.sql mysql-94dc6645b-hjjqb:/tmp/
+$oc rsh mysql-94dc6645b-hjjqb /bin/bash
+$mysql -u root items < /tmp/db-data.sql
+$mysql -u root items -e "show tables;"
+$exit
+=============================================================
+3- Deploy the front end application. The ~/DO280/labs/network-sdn/todo-frontend.yaml file defines the following resources:
+A deployment that creates the Todo Node.js application.
+A service that points to the frontend application.
+=============================================================
+$oc create -f todo-frontend.yaml
+$oc get pods
+=============================================================
+4- Create a route to access the frontend service and access the application.
+=============================================================
+$oc expose service frontend --hostname todo.apps.ocp4.example.com
+$oc get route
+$oc logs oc logs frontend-57b8b445df-f56qh
+=============================================================
+5- Run oc debug to create a carbon copy of an existing pod in the frontend deployment. You use this pod to check connectivity to the database.
+=============================================================
+$oc get service
+$oc debug -t deployment/frontend
+$curl -v telnet://172.30.103.29:3306
+^c
+$exit
+=============================================================
+6- In the following steps, you ensure that the network connectivity inside the cluster is operational by 
+connecting to the front end container from the database container.
+=============================================================
+$oc get svc
+$oc debug -t deployment/mysql --image registry.access.redhat.com/ubi8/ubi:8.4
+$curl -m 10 http://172.30.23.147:8080
+$exit
+=============================================================
+7- In the following steps, you connect to the frontend pod through its private IP. 
+This allows testing, whether or not the issue is related to the service.
+=============================================================
+$oc get pods -l name=frontend -o wide
+$oc debug -t deployment/mysql --image registry.access.redhat.com/ubi8/ubi:8.4
+$curl -v http://10.128.2.61:8080/todo
+$exit
+=============================================================
+8- Review the configuration of the frontend service.
+=============================================================
+$oc get svc
+$oc describe svc/frontend
+$oc describe deployment/frontend | grep -A1 Labels
+=============================================================
+9- Update the frontend service and access the application.
+=============================================================
+$oc edit svc/frontend
+selector:
+    name: frontend
+$oc describe svc/frontend
+==============================================================
+10- Perform cleanup.
+==============================================================
+$cd
+$oc delete project network-sdn
