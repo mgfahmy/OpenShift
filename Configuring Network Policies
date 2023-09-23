@@ -1,0 +1,106 @@
+1- Log in to the OpenShift cluster and create the network-policy project.
+=============================================================
+$oc login -u developer -p developer https://api.ocp4.example.com:6443
+$oc new-project network-policy
+=============================================================
+2- Create two deployments and create a route for one of them.
+=============================================================
+$oc new-app --name hello --image quay.io/redhattraining/hello-world-nginx:v1.0
+$oc get pods
+$oc new-app --name test --image quay.io/redhattraining/hello-world-nginx:v1.0
+$oc get pods
+$oc expose svc hello
+==============================================================
+3- Verify access to the hello pod with the oc rsh and curl commands.
+==============================================================
+$ ~/DO280/labs/network-policy/display-project-info.sh
+$oc rsh test-c4d74c9d5-5pq9s
+$curl 10.8.0.13:8080
+$curl hello-network-policy.apps.ocp4.example.com
+$exit
+==============================================================
+4- Create the network-test project and a deployment named sample-app.
+==============================================================
+$oc new-project network-test
+$oc new-app sample-app --image quay.io/redhattraining/hello-world-nginx:v1.0
+$oc get pods
+==============================================================
+5- Verify that pods in a different namespace can access the hello and test pods in the network-policy namespace.
+==============================================================
+$ ~/DO280/labs/network-policy/display-project-info.sh
+$oc rsh sample-app-d5f945-spx9q
+$curl 10.8.0.13:8080
+$exit
+================================================================
+6- From the network-policy project, create the deny-all network policy using the resource file available at ~/DO280/labs/network-policy/deny-all.yaml.
+================================================================
+$cd ~/DO280/labs/network-policy
+$oc project network-policy
+$vim deny-all.yaml
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: deny-all
+spec:
+  podSelector: {}
+$oc create -f deny-all.yaml
+================================================================
+7- Verify there is no longer access to the pods in the network-policy namespace.
+================================================================
+$curl -s hello-network-policy.apps.ocp4.example.com
+$oc rsh test-c4d74c9d5-5pq9s
+$curl 10.8.0.13:8080
+$oc project network-test
+$oc rsh sample-app-d5f945-spx9q curl curl 10.8.0.14:8080 
+================================================================
+8- Create a network policy to allow traffic to the hello pod in the network-policy namespace from the sample-app pod in the network-test namespace over TCP on port 8080. 
+Use the resource file available at ~/DO280/labs/network-policy/allow-specific.yaml.
+=================================================================
+$vim allow-specific.yaml
+spec:
+  podSelector:
+    matchLabels:
+      deployment: hello
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: network-test
+        podSelector:
+          matchLabels:
+            deployment: sample-app
+      ports:
+      - port: 8080
+        protocol: TCP
+$oc create -n network-policy -f allow-specific
+$oc get networkpolicies -n network-policy
+===================================================================
+9- As the admin user, label the network-test namespace with the name=network-test label.
+===================================================================
+$oc login -u admin -p redhat
+$oc label namespace network-test name=network-test
+$oc describe namespace network-test
+$oc login -u developer -p developer
+===================================================================
+10- Verify that the sample-app pod can access the IP address of the hello pod, but cannot access the IP address of the test pod.
+===================================================================
+$oc project network-test
+$oc rsh sample-app-d5f945-spx9q curl 10.8.0.13:8080
+$oc rsh sample-app-d5f945-spx9q curl 10.8.0.14:8080
+===================================================================
+11- Create a network policy to allow traffic to the hello pod from the exposed route. 
+Use the resource file available at ~/DO280/labs/network-policy/allow-from-openshift-ingress.yaml.
+===================================================================
+$vim allow-from-openshift-ingress.yaml
+spec:
+  podSelector: {}
+  ingress:
+    - from:
+      - namespaceSelector:
+           matchLabels:
+              network.openshift.io/policy-group: ingress
+$oc create -n network-policy -f allow-from-openshift-ingress.yaml
+$oc login -u admin -p redhat
+$oc label namespace default network.openshift.io/policy-group=ingress
+$curl hello-network-policy.apps.ocp4.example.com
+$cd
