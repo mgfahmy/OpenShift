@@ -1,0 +1,93 @@
+1- As the OpenShift developer user, create the network-review project.
+================================================================
+$oc login -u developer -p password
+$oc new-project network-review
+================================================================
+2- As the developer user, deploy the insecure version of the PHP application to the network-review project. 
+Use the resource file available at ~/DO280/labs/network-review/php-http.yaml.
+Make the necessary changes to the file, use the quay.io/redhattraining/php-ssl:v1.0 container image and set the port to 8080.
+After creating the application, wait a few moments to ensure that one pod is running.
+================================================================
+$vim ~/DO280/labs/network-review/php-http.yaml
+$oc create -f ~/DO280/labs/network-review/php-http.yaml
+$oc get pods
+================================================================
+3- Create a route named php-http, with a hostname of php-http.apps.ocp4.example.com, to access the application.
+From the workstation machine, use Firefox to access the application URL:
+http://php-http.apps.ocp4.example.com/.
+Confirm the availability of the application before proceeding to the next step.
+================================================================
+$oc expose svc php-http --hostname php-http.apps.ocp4.example.com
+$oc get route
+================================================================
+4- Create a network policy in the network-review namespace to deny all ingress traffic by default. When configured correctly, 
+the network policy also prevents pods within the network-review namespace from communicating with each other.
+Use the resource file available at ~/DO280/labs/network-review/deny-all.yaml. Make the necessary changes to target all pods in the namespace.
+================================================================
+$vim ~/DO280/labs/network-review/deny-all.yaml
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: deny-all
+spec:
+  podSelector: {}
+$oc create -f ~/DO280/labs/network-review/deny-all.yaml
+$curl http://php-http.apps.ocp4.example.com
+================================================================
+5- Create a network policy to allow ingress traffic to routes in the network-review namespace.
+Use the resource file available at ~/DO280/labs/network-review/allow-from-openshift-ingress.yaml. 
+Make the necessary changes to target all pods in the namespace and allow traffic from the default ingress controller.
+Because the classroom environment uses the HostNetwork endpoint strategy, label the default namespace with the 
+network.openshift.io/policy-group=ingress label. This action must be performed as the admin user.
+================================================================
+$vim ~/DO280/labs/network-review/allow-from-openshift-ingress.yaml
+spec:
+  podSelector: {}
+  ingress:
+    - from    
+       - namesspaceSelector:
+           matchLabels:
+              network.openshift.io/policy-group: ingress
+$oc create -f allow-from-openshift-ingress.yaml
+$oc login -u admin -p redhat
+$oc label namespace default network.openshift.io/policy-group=ingress
+$curl http://php-http.apps.ocp4.example.com
+================================================================
+6- As the developer user, generate and sign a TLS certificate for the encrypted version of the application.
+Create a certificate signing request (CSR) for the php-https.apps.ocp4.example.com hostname. Save the CSR to ~/DO280/labs/network-review/certs/training.csr.
+Use the CSR to generate a certificate and save it to ~/DO280/labs/network-review/certs/training.crt. To generate the certificate, 
+pass as arguments the CA certificate accessible at ~/DO280/labs/network-review/certs/training-CA.pem and the CSR.
+You can use the ~/DO280/labs/network-review/certs/openssl-commands.txt text file for help. 
+This file contains the commands for generating the certificate signing request and the certificate. 
+Make sure to replace the values in the file before copying and running the OpenSSL commands.
+================================================================
+$oc login -u developer -p developer
+$cd ~/DO280/labs/network-review/certs/
+$openssl req -new -key training.key -subj "/C=US/ST=New Carolina/L=Releigh/O=Red Hat/CN=php-https.apps.ocp4.example.com" -out training.csr
+$openssl x509 -req -in training.csr -CA training-CA.pem -CAkey training-CA.key -CAreateserial -passin file passphrase.txt \
+-out training.crt -deys 365 -sha256 -extfile training.ext
+$cd ..
+================================================================
+7- Create an OpenShift TLS secret named php-certs in the network-review project. Use the ~/DO280/labs/network-review/certs/training.crt file for the 
+certificate and the ~/DO280/labs/network-review/certs/training.key file for the key.
+================================================================
+$oc create secret tls php-certs --cert certs/training.crt --key certs/training.key
+$oc get secret
+================================================================
+8- Use the resource file, available at ~/DO280/labs/network-review/php-https.yaml, to deploy the secure version of the PHP application. 
+Deploy the application to the network-review project.
+Before deploying the application, make the necessary changes to the resources file, specifically:
+The location of the container.
+The port the application listens on.
+The name of the secret to mount as a volume.
+=================================================================
+$vim php-https.yaml
+$oc create -f php-https.yaml
+=================================================================
+9- Create a secure passthrough route named php-https, with a hostname of php-https.apps.ocp4.example.com, to access the secure version of the application.
+From the workstation machine, use Firefox to access the application URL:
+https://php-https.apps.ocp4.example.com/.
+Accept the signed certificate and confirm the availability of the application.
+=================================================================
+$oc create route passthrough php-https --service php-https --hostname php-https.apps.ocp4.example.com
+$oc get route
