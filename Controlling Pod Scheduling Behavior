@@ -1,0 +1,50 @@
+1- As the developer user, create a new project named schedule-pods
+=======================================================
+$oc login -u developer -p developer https://api.ocp4.example.com
+$oc new-project schedule-pods
+=======================================================
+2- Deploy and scale a test application.
+=======================================================
+$oc new-app --name hello --image quay.io/redhattraining/hello-world-nginx:v1.0
+$oc expose svc/hello
+$oc scale deployment/hello --replicas 4
+$oc get pod -o wide 
+=======================================================
+3- Prepare the nodes so that application workloads can be distributed to either development or production nodes by assigning the env label. 
+Assign the env=dev label to the master01 node and the env=prod label to the master02 node.
+=======================================================
+$oc login -u admin -p redhat
+$oc get nodes -L env
+$oc label node master01 env=dev
+$oc label node master02 env=prod
+$oc get nodes -L env
+=======================================================
+4- Switch back to the developer user and modify the hello application so that it is deployed to the development node. 
+After verifying this change, delete the schedule-pods project.
+=======================================================
+$oc login -u developer -p developer
+$oc edit deployment/hello
+nodeSelector:
+        env: dev
+$oc get pods -o wide
+$oc delete project schedule-pods
+=======================================================
+5- Finish cleaning up this portion of the exercise by removing the env label from all nodes
+=======================================================
+$oc login -u admin -p redhat
+$oc label node -l env env-
+=======================================================
+6- The schedule-pods-ts project contains an application that runs only on nodes that are labeled as client=ACME. 
+In the following example, the application pod is pending and you must diagnose the problem using the following steps:
+=======================================================
+$oc login -u developer -p developer
+$oc project schedule-pods-ts
+$oc get pods
+$oc describe pod hello-ts-5dbff9f44-w6csj
+$oc login -u admin -p redhat
+$oc get nodes -L client
+$oc login -u developer -p developer
+$oc get deployment
+$oc edit deployment/hello-ts
+client: ACME
+$oc get pods
