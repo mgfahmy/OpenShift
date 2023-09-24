@@ -1,0 +1,86 @@
+1- As the developer user, create a new project named schedule-limit.
+================================================================
+$ oc login -u developer -p developer https://api.ocp4.example.com:6443
+$ oc new-project schedule-limit
+================================================================
+2- Deploy a test application for this exercise that explicitly requests container resources for CPU and memory.
+================================================================
+$oc create deployment hello-limit --image quay.io/redhattraining/hello-world-nginx:v1.0 \
+--dry-run=client -o yaml > ~/DO280/labs/schedule-limit/hello-limit.yaml
+$vim ~/DO280/labs/schedule-limit/hello-limit.yaml
+spec:
+      containers:
+      - image: quay.io/redhattraining/hello-world-nginx:v1.0
+        name: hello-world-nginx
+        resources:
+          requests:
+             cpu: 3
+             memory: 20Mi
+$oc create --save-config -f ~/DO280/labs/schedule-limit/hello-limit.yaml
+$oc get pods
+$oc get events --field-selector type=Warning " or || " $oc decribe pod hello-limit-d86874d86b-fpmrt 
+================================================================
+3- Redeploy your application so that it requests fewer CPU resources.
+================================================================
+$vim ~/DO280/labs/schedule-limit/hello-limit.yaml
+ resources:
+          requests:
+             cpu: 1200m
+             memory: 20Mi
+$oc apply -f ~/DO280/labs/schedule-limit/hello-limit.yaml
+$oc get pods
+================================================================
+4- Attempt to scale your application from one pod to four pods. After verifying that this change would exceed the capacity of your cluster,
+delete the resources associated with the hello-limit application.
+================================================================
+$oc scale deployment/hello-limit --replicas 4
+$oc get pods
+$oc get events --field-selector tyoe=Warning 
+$oc delete all -l deployment=hello-limit
+================================================================
+5- As a cluster administrator, create quotas for the schedule-limit project.
+================================================================
+$oc login -u admin -p redhat
+$oc create quota projectquota --hard cpu=3,memory=2,configmaps=2 -n schedule-limit
+================================================================
+6- As a developer, attempt to exceed the configuration map quota for the project.
+================================================================
+$oc login -u developer -p developer
+$oc create configmap myconfig
+================================================================
+7- As a cluster administrator, configure all new projects with default quota and limit range resources.
+================================================================
+$oc login -u admin -p redhat
+$oc adm create-bootstrap-project-template -o yaml > /tmp/project-template.yaml
+$vim /tmp/project-template.yaml
+- apiVersion: v1
+  kind: ResourceQuota
+  metadata:
+    name: ${PROJECT_NAME}-quota
+  spec:
+    hard:
+      cpu: 3
+      memory: 10G
+- apiVersion: v1
+  kind: LimitRange
+  metadata:
+    name: ${PROJECT_NAME}-limits
+  spec:
+    limits:
+      - type: Container
+        defaultRequest:
+          cpu: 30m
+          memory: 30M
+$oc create -f /tmp/project-template.yaml -n openshift-config
+$oc edit projects.config.openshift.io/cluster
+spec:
+  projectRequestTemplate:
+    name: project-request
+$watch oc get pods -n openshift-apiserver
+$oc new-project template-test
+$oc get resourcequotas,limitranges
+========================================================
+8- Clean up the lab environment by deleting the projects created in this exercise.
+========================================================
+$oc delete project schedule-limit
+$oc delete project template-test
