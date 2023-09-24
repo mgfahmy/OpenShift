@@ -1,0 +1,45 @@
+1- As the developer user, create a new project named schedule-scale.
+============================================================
+$oc login -u developer -p developer https://api.ocp4.example.com:6443
+$oc new-project schedule-scale
+============================================================
+2-Deploy a test application for this exercise which explicitly requests container resources for CPU and memory.
+============================================================
+$vim ~/DO280/labs/schedule-scale/loadtest.yaml
+spec:
+      containers:
+      - image: quay.io/redhattraining/loadtest:v1.0
+        name: loadtest
+        resources:
+          requests:
+            cpu: "25m"
+            memory: 25Mi
+          limits:
+            cpu: "100m"
+            memory: 100Mi
+$oc create --save-config -f ~/DO280/labs/schedule-scale/loadtest.yaml
+$oc get pods
+$oc describe pod loadtest-5f9565dbfb-jm9md
+============================================================
+3- Manually scale the loadtest deployment by first increasing and then decreasing the number of running pods.
+============================================================
+$oc scale deployment/loadtest --replicas 5
+$oc get pods
+$oc scale deployment/loadtest --replicas 1
+$oc get pods
+============================================================
+4- Configure the loadtest application to automatically scale based on load, and then test the application by applying load.
+============================================================
+$oc autoscale deployment/loadtest--min 2 --max 10 --cpu-percent 50
+$oc get pods
+$oc get hpa/loadtest
+============================================================
+5- Back in the first terminal window, create a second application named scaling. 
+Scale the application, and then verify the responses coming from the application pods.
+============================================================
+$oc new-app --name scaling --image quay.io/redhattraining/scaling:v1.0
+$oc expose svc/scaling
+$oc scale --replicas 3 deployment/scaling
+$oc get pods -o wide -l deployment=scaling
+$oc get route
+$oc delete project schedule-scale
